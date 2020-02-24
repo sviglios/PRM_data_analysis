@@ -180,17 +180,22 @@ def get_protein_values(master_df):
 
 
 def rescale(master_df):
-    '''Rescale values from 0 - 1000'''
+    '''Rescale values from 0 - 100, for each protein individually'''
     
-    #https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.MinMaxScaler.html
-    #https://stackoverflow.com/questions/24645153/pandas-dataframe-columns-scaling-with-sklearn
-    scaler = MinMaxScaler(feature_range = (0,1000))
+    scaled_df = pd.DataFrame(columns = protein_df.columns)
+    proteins = master_df.protein.unique()
     
-    master_df[['total_area_protein']] = scaler.fit_transform(master_df[['total_area_protein']])
+    for prot in proteins:
+        temp = master_df[master_df.protein == prot]
+        
+        #https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.MinMaxScaler.html
+        #https://stackoverflow.com/questions/24645153/pandas-dataframe-columns-scaling-with-sklearn
+        scaler = MinMaxScaler(feature_range = (0,1))    
+        temp[['total_area_protein']] = scaler.fit_transform(temp[['total_area_protein']])
+        
+        scaled_df = scaled_df.append(temp)
     
-    return master_df
-
-
+    return scaled_df
 
 
 #run things under here
@@ -212,11 +217,10 @@ for i in range(1,5):
 peptide_final_df = normalize_plates(dataframes, dics_internorm)    
 
 protein_df = get_protein_values(peptide_final_df)
+#protein_df.to_excel('Norm_prot.xlsx')
 
-protein_df = rescale(protein_df)
-
-
-
+rescaled_df = rescale(protein_df)
+#rescaled_df.to_excel('Scaled_prot.xlsx')
 
 # =============================================================================
 # plate1 = pd.read_csv('ResultsSQ_plate1.csv', sep=';')
