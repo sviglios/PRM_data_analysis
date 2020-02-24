@@ -174,7 +174,7 @@ def get_protein_values(master_df):
            'timepoint', 'type'], as_index = False)['total_area_plate_norm'].mean()
     
     protein_df = protein_df.rename(columns = {'total_area_plate_norm':'total_area_protein'})
-    protein_df['protein'] = protein_df.protein_name.str[10:]
+    protein_df['protein'] = protein_df.protein_name.str[10:-6]
     
     return protein_df
 
@@ -190,12 +190,36 @@ def rescale(master_df):
         
         #https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.MinMaxScaler.html
         #https://stackoverflow.com/questions/24645153/pandas-dataframe-columns-scaling-with-sklearn
-        scaler = MinMaxScaler(feature_range = (0,1))    
+        scaler = MinMaxScaler(feature_range = (0,100))    
         temp[['total_area_protein']] = scaler.fit_transform(temp[['total_area_protein']])
         
         scaled_df = scaled_df.append(temp)
     
     return scaled_df
+
+
+def remove_outliers(master_df, flag, perc):
+    '''Remove outliers, if flag is True'''
+    
+    if flag:
+        
+        clean_df = pd.DataFrame(columns = master_df.columns)
+        proteins = master_df.protein.unique()
+        
+        for prot in proteins:
+            
+            temp = master_df[master_df.protein == prot]
+            
+            qh = temp.total_area_protein.quantile(1-perc)
+            ql = temp.total_area_protein.quantile(perc)
+            temp = temp[(temp.total_area_protein > ql) & (temp.total_area_protein < qh)]
+            clean_df = clean_df.append(temp)
+            
+        return clean_df
+            
+    else:
+        return master_df
+
 
 
 #run things under here
@@ -219,9 +243,31 @@ peptide_final_df = normalize_plates(dataframes, dics_internorm)
 protein_df = get_protein_values(peptide_final_df)
 #protein_df.to_excel('Norm_prot.xlsx')
 
-rescaled_df = rescale(protein_df)
+treated_df = remove_outliers(protein_df, flag = True, perc = 0.10)
+
+rescaled_df = rescale(treated_df)
 #rescaled_df.to_excel('Scaled_prot.xlsx')
 
+
+# =============================================================================
+# sns.set(context='notebook', style='whitegrid', palette = 'deep', font= 'Helvetica')
+# 
+# fig = plt.figure(figsize = (9,6))
+# 
+# ax = sns.boxplot(x='protein', y='total_area_protein', hue='timepoint', data= rescaled_df[rescaled_df.condition == 'Acute'], palette='vlag')
+# # =============================================================================
+# # for tick in ax.xaxis.get_major_ticks():
+# #     tick.label.set_fontsize(10)
+# # ax.tick_params( rotation=30)
+# # =============================================================================
+# #ax.set_ylim(0,100)
+# ax.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+# #ax.set_title('Acute healing, all timepoints')
+# ax.set_ylabel('Protein relative concentration')
+# ax.set_xlabel('Protein')
+# plt.tight_layout()
+# =============================================================================
+    
 # =============================================================================
 # plate1 = pd.read_csv('ResultsSQ_plate1.csv', sep=';')
 # 
