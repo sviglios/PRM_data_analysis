@@ -23,6 +23,8 @@ Switch to dark mode, monokai theme imo. Tools -> Preferences for customization.
 import pandas as pd
 import statistics as stat
 import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -164,15 +166,29 @@ def normalize_plates(dataframes, dics_innernorm):
 
 def get_protein_values(master_df):      
     '''Average values of all peptides for a given protein, across all samples.
-    Keep only the columns we need for analysis to clean up a bit'''
+    Keep only the columns we need for analysis and clean up a bit. Rescale to 
+    a 0-1000 scale as well'''
     
     #average proteins based on peptides, keep columns of interest
     protein_df = master_df.groupby(['protein_name','replicate_name', 'sample', 'condition',
            'timepoint', 'type'], as_index = False)['total_area_plate_norm'].mean()
     
-    protein_df = protein_df.rename({'total_area_plate_norm':'total_area_protein'})
+    protein_df = protein_df.rename(columns = {'total_area_plate_norm':'total_area_protein'})
+    protein_df['protein'] = protein_df.protein_name.str[10:]
     
     return protein_df
+
+
+def rescale(master_df):
+    '''Rescale values from 0 - 1000'''
+    
+    #https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.MinMaxScaler.html
+    #https://stackoverflow.com/questions/24645153/pandas-dataframe-columns-scaling-with-sklearn
+    scaler = MinMaxScaler(feature_range = (0,1000))
+    
+    master_df[['total_area_protein']] = scaler.fit_transform(master_df[['total_area_protein']])
+    
+    return master_df
 
 
 
@@ -197,24 +213,11 @@ peptide_final_df = normalize_plates(dataframes, dics_internorm)
 
 protein_df = get_protein_values(peptide_final_df)
 
+protein_df = rescale(protein_df)
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-       
 # =============================================================================
 # plate1 = pd.read_csv('ResultsSQ_plate1.csv', sep=';')
 # 
