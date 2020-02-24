@@ -40,6 +40,10 @@ SOME PEPTIDES DO NOT HAVE VALUES IN THE LIGHT VERSION IN SOME SAMPLES
 FEWER PEPTIDES DO NOT HAVE VALUES FOR EITHER LIGHT OR HEAVY IN A FEW SAMPLES
 '''
 
+'''
+PROCESSING AND CLEANING UP FUNCTIONS
+'''
+
 
 def read_clean_plate(plate_file):
     '''Read plate, convert columns to an easier to select format,
@@ -203,6 +207,9 @@ def remove_outliers(master_df, flag, perc):
     
     if flag:
         
+        #remove 0s are below the limit of detection
+        #master_df = master_df[master_df['total_area_protein'] != 0]
+
         clean_df = pd.DataFrame(columns = master_df.columns)
         proteins = master_df.protein.unique()
         
@@ -214,11 +221,16 @@ def remove_outliers(master_df, flag, perc):
             ql = temp.total_area_protein.quantile(perc)
             temp = temp[(temp.total_area_protein > ql) & (temp.total_area_protein < qh)]
             clean_df = clean_df.append(temp)
-            
+                        
         return clean_df
             
     else:
         return master_df
+
+
+'''
+VISUALIZATION FUNCTIONS
+'''
 
 def pretty_plots(pdata):
     '''Creates 4 plots. Two boxplots of impaired vs acute and MEC vs HYC, 
@@ -268,7 +280,211 @@ def pretty_plots(pdata):
     sns.despine(trim=True, left=True)
     
     
+def boxplot_all(rescaled_df, hue):
+    '''Boxplots, all acute/impaired, based on hue'''
+    
+    fig = plt.figure(figsize = (9,6))
+    ax = sns.boxplot(x='protein', y='total_area_protein', hue=hue, 
+                     data= rescaled_df[rescaled_df.condition == 'Acute'], palette='vlag', showfliers = False)
+    # =============================================================================
+    # for tick in ax.xaxis.get_major_ticks():
+    #     tick.label.set_fontsize(10)
+    # ax.tick_params( rotation=30)
+    # =============================================================================
+    ax.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+    ax.set_title('Acute healing, all timepoints')
+    ax.set_ylabel('Protein relative concentration')
+    ax.set_xlabel('Protein')
+    plt.tight_layout()
+    plt.savefig('Acute_'+hue+'.png', dpi = 300, format = 'png')
+    plt.close()
+    
+    fig = plt.figure(figsize = (9,6))
+    ax = sns.boxplot(x='protein', y='total_area_protein', hue=hue, 
+                     data= rescaled_df[rescaled_df.condition == 'Impaired'], palette='vlag', showfliers = False)
+    # =============================================================================
+    # for tick in ax.xaxis.get_major_ticks():
+    #     tick.label.set_fontsize(10)
+    # ax.tick_params( rotation=30)
+    # =============================================================================
+    ax.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+    ax.set_title('Impaired healing, all timepoints')
+    ax.set_ylabel('Protein relative concentration')
+    ax.set_xlabel('Protein')
+    plt.tight_layout()
+    plt.savefig('Impaired_'+hue+'.png', dpi = 300, format = 'png')
+    plt.close()
 
+
+def boxplot_subplots(rescaled_df, hue):
+    '''Boxplot subplots for all proteins, all acute/impaired, based on hue'''
+    
+    proteins = rescaled_df.protein.unique()
+    fig, ax = plt.subplots(3,2,figsize = (8,12))
+    
+    x = 0
+    for i in range(0, len(proteins), 2):
+        y = 0
+        
+        sns.boxplot(x='protein', y='total_area_protein', hue=hue, 
+          data= rescaled_df[(rescaled_df.condition == 'Acute') & (rescaled_df.protein == proteins[i])], 
+          palette='vlag', showfliers = False, ax = ax[x,y]) 
+   
+        ax[x,y].get_legend().set_visible(False)
+        ax[x,y].set_ylabel('')
+        ax[x,y].set_xlabel('')
+    
+        if x == 1 and y == 0:
+            ax[x,y].set_ylabel('Normalized rel. concentration')
+        elif x == 2 and y == 0:
+            ax[x,y].set_xlabel('Protein')
+            ax[x,y].xaxis.set_label_coords(1.05, -0.1)
+            
+        y += 1
+        sns.boxplot(x='protein', y='total_area_protein', hue=hue, 
+          data= rescaled_df[(rescaled_df.condition == 'Acute') & (rescaled_df.protein == proteins[i+1])], 
+          palette='vlag', showfliers = False, ax = ax[x,y]) 
+
+        ax[x,y].get_legend().set_visible(False)
+        ax[x,y].set_ylabel('')
+        ax[x,y].set_xlabel('')    
+            
+        x += 1
+    
+    fig.suptitle('Acute healing, all timepoints')
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.95)
+    plt.savefig('Subplot_'+hue+'_acute_all.png', dpi = 300, format = 'png')
+    plt.close()
+    
+    #second fig
+    proteins = rescaled_df.protein.unique()
+    fig, ax = plt.subplots(3,2,figsize = (8,12))
+    
+    x = 0
+    for i in range(0, len(proteins), 2):
+        y = 0
+        
+        sns.boxplot(x='protein', y='total_area_protein', hue=hue, 
+          data= rescaled_df[(rescaled_df.condition == 'Impaired') & (rescaled_df.protein == proteins[i])], 
+          palette='vlag', showfliers = False, ax = ax[x,y]) 
+  
+        ax[x,y].get_legend().set_visible(False)
+        ax[x,y].set_ylabel('')
+        ax[x,y].set_xlabel('')
+        
+        if x == 1 and y == 0:
+            ax[x,y].set_ylabel('Normalized rel. concentration')
+        elif x == 2 and y == 0:
+            ax[x,y].set_xlabel('Protein')
+            ax[x,y].xaxis.set_label_coords(1.05, -0.1)
+        
+        y += 1
+        sns.boxplot(x='protein', y='total_area_protein', hue=hue, 
+          data= rescaled_df[(rescaled_df.condition == 'Impaired') & (rescaled_df.protein == proteins[i+1])], 
+          palette='vlag', showfliers = False, ax = ax[x,y]) 
+
+        ax[x,y].get_legend().set_visible(False)
+        ax[x,y].set_ylabel('')
+        ax[x,y].set_xlabel('')    
+        
+        x += 1
+    
+    fig.suptitle('Impaired healing, all timepoints')
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.95)
+    plt.savefig('Subplot_'+hue+'_impaired_all.png', dpi = 300, format = 'png')
+    plt.close()
+
+
+def boxplot_type(rescaled_df, hue):
+    
+    proteins = rescaled_df.protein.unique()
+    fig, ax = plt.subplots(3,2,figsize = (8,12))
+    
+    x = 0
+    for i in range(0, len(proteins), 2):
+        y = 0
+        
+        sns.boxplot(x='type', y='total_area_protein', hue=hue, 
+            data= rescaled_df[rescaled_df.protein == proteins[i]], 
+            palette='vlag', showfliers = False, ax = ax[x,y]) 
+ 
+        ax[x,y].get_legend().set_visible(False)
+        ax[x,y].set_ylabel('')
+        ax[x,y].set_xlabel('')
+        ax[x,y].set_title(proteins[i])
+        
+        if x == 1 and y == 0:
+            ax[x,y].set_ylabel('Normalized rel. concentration')
+        elif x == 2 and y == 0:
+            ax[x,y].set_xlabel('Protein')
+            ax[x,y].xaxis.set_label_coords(1.05, -0.1)
+        
+        y += 1
+        sns.boxplot(x='type', y='total_area_protein', hue=hue, 
+          data= rescaled_df[rescaled_df.protein == proteins[i+1]], 
+          palette='vlag', showfliers = False, ax = ax[x,y]) 
+
+        ax[x,y].get_legend().set_visible(False)
+        ax[x,y].set_ylabel('')
+        ax[x,y].set_xlabel('')    
+        ax[x,y].set_title(proteins[i + 1])
+        
+        if x == 2 and y == 1:
+            ax[x,y].legend()
+        x += 1
+    
+    fig.suptitle(f'All timepoints, {hue}')
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.92)
+    plt.savefig('Subplot_'+hue+'type_all.png', dpi = 300, format = 'png')
+    plt.close()
+
+def lineplot(rescaled_df):
+    sns.set(style="ticks")
+    colors = sns.color_palette('muted')
+    proteins = rescaled_df.protein.unique()
+    fig, ax = plt.subplots(3,2,figsize = (8,12))
+    
+    x = 0
+    for i in range(0, len(proteins), 2):
+        
+        y = 0
+        sns.lineplot(x="timepoint", y="total_area_protein",
+             hue="condition", data=rescaled_df[rescaled_df.protein == proteins[i]], color = colors[i], ax = ax[x,y])
+        
+        ax[x,y].get_legend().set_visible(False)
+        ax[x,y].set_ylabel('')
+        ax[x,y].set_xlabel('')
+        ax[x,y].set_title(proteins[i])
+        
+        if x == 1 and y == 0:
+            ax[x,y].set_ylabel('Normalized rel. concentration')
+        elif x == 2 and y == 0:
+            ax[x,y].set_xlabel('Protein')
+            ax[x,y].xaxis.set_label_coords(1.05, -0.1)
+        
+        y += 1
+        sns.lineplot(x="timepoint", y="total_area_protein",
+                hue="condition", data=rescaled_df[rescaled_df.protein == proteins[i+1]], color = colors[i], ax = ax[x,y])
+    
+        ax[x,y].get_legend().set_visible(False)
+        ax[x,y].set_ylabel('')
+        ax[x,y].set_xlabel('')    
+        ax[x,y].set_title(proteins[i + 1])
+        
+        if x == 2 and y == 1:
+            ax[x,y].legend()
+        x += 1
+    
+    fig.suptitle(f'All timepoints')
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.92)
+    plt.savefig('Subplot_lineplot_all.png', dpi = 300, format = 'png')
+    plt.close()
+    
+    
 #run things under here
       
 file_pre = 'ResultsSQ_plate'
@@ -290,31 +506,22 @@ peptide_final_df = normalize_plates(dataframes, dics_internorm)
 protein_df = get_protein_values(peptide_final_df)
 #protein_df.to_excel('Norm_prot.xlsx')
 
-treated_df = remove_outliers(protein_df, flag = True, perc = 0.10)
+treated_df = remove_outliers(protein_df, flag = False, perc = 0.10)
 
 rescaled_df = rescale(treated_df)
 #rescaled_df.to_excel('Scaled_prot.xlsx')
 
+sns.set(context='notebook', style='whitegrid', palette = 'deep', font= 'Helvetica')
 
-# =============================================================================
-# sns.set(context='notebook', style='whitegrid', palette = 'deep', font= 'Helvetica')
-# 
-# fig = plt.figure(figsize = (9,6))
-# 
-# ax = sns.boxplot(x='protein', y='total_area_protein', hue='timepoint', data= rescaled_df[rescaled_df.condition == 'Acute'], palette='vlag')
-# # =============================================================================
-# # for tick in ax.xaxis.get_major_ticks():
-# #     tick.label.set_fontsize(10)
-# # ax.tick_params( rotation=30)
-# # =============================================================================
-# #ax.set_ylim(0,100)
-# ax.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-# #ax.set_title('Acute healing, all timepoints')
-# ax.set_ylabel('Protein relative concentration')
-# ax.set_xlabel('Protein')
-# plt.tight_layout()
-# =============================================================================
-    
+'''plot function calling'''
+#hue timepoint or type
+#boxplot_all(rescaled_df, hue = 'type')
+#boxplot_subplots(rescaled_df, hue = 'type')
+#pretty_plots(rescaled_df)
+#boxplot_type(rescaled_df, hue = 'condition')
+#lineplot(rescaled_df)
+
+
 # =============================================================================
 # plate1 = pd.read_csv('ResultsSQ_plate1.csv', sep=';')
 # 
@@ -369,8 +576,6 @@ rescaled_df = rescale(treated_df)
 # 
 # pepdf_light['total_area_fragment_norm'] = light_lst
 # =============================================================================
-
-
 
 # =============================================================================
 # plate = pd.read_csv('ResultsSQ_plate1.csv', sep=';')
