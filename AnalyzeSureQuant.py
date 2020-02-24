@@ -221,8 +221,8 @@ def remove_outliers(master_df, flag, perc):
         return master_df
 
 def pretty_plots(pdata):
-    
-
+    '''Creates 4 plots. Two boxplots of impaired vs acute and MEC vs HYC, 
+    as well as two line plots, one for acute and one for impaired samples over time'''
     sns.set(style="ticks")
 
     # initialize the figure with a logarithmic x axis
