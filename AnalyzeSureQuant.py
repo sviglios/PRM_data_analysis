@@ -39,8 +39,9 @@ FEWER PEPTIDES DO NOT HAVE VALUES FOR EITHER LIGHT OR HEAVY IN A FEW SAMPLES
 '''
 
 
-
 def read_clean_plate(plate_file):
+    '''Read plate, convert columns to an easier to select format,
+    remove NA values, create column to store the normalized values'''
     
     plate = pd.read_csv(plate_file, sep=';')
     plate.columns = plate.columns.str.strip().str.lower().str.replace(' ', '_').str.replace('(', '').str.replace(')', '')
@@ -50,7 +51,11 @@ def read_clean_plate(plate_file):
     
     return plate
 
+
 def normalize_innerplate(plate):
+    '''Normalization of light peptide fragment area values
+    based on the heavy peptide area. The median of the heavy peptide
+    values is used to rescale all light peptide values'''
     
     #make plate intermediate dataframe after inner plate normalization
     plate_df = pd.DataFrame(columns = plate.columns) 
@@ -89,8 +94,11 @@ def normalize_innerplate(plate):
     return plate_df, dic_inter_norm
 
     
-
 def normalize_plates(dataframes, dics_innernorm):
+    '''Normalize on plate level. Compare medians of heavy peptides,
+    for each peptide, for each plate. Normalize between them, refactor
+    all light peptide values with that. Use only peptides that are 
+    present in all plates'''
     
     #this is really crappy way to do this, and function in general.
     
@@ -152,10 +160,25 @@ def normalize_plates(dataframes, dics_innernorm):
             master_df = master_df.append(df_seq)
     
     return master_df
-        
 
 
-#run things under here      
+def get_protein_values(master_df):      
+    '''Average values of all peptides for a given protein, across all samples.
+    Keep only the columns we need for analysis to clean up a bit'''
+    
+    #average proteins based on peptides, keep columns of interest
+    protein_df = master_df.groupby(['protein_name','replicate_name', 'sample', 'condition',
+           'timepoint', 'type'], as_index = False)['total_area_plate_norm'].mean()
+    
+    protein_df = protein_df.rename({'total_area_plate_norm':'total_area_protein'})
+    
+    return protein_df
+
+
+
+
+#run things under here
+      
 file_pre = 'ResultsSQ_plate'
 dataframes = []
 dics_internorm = []
@@ -170,8 +193,28 @@ for i in range(1,5):
     dataframes.append(plate_df)
     dics_internorm.append(lst_norm)
 
-final_df = normalize_plates(dataframes, dics_internorm)    
-        
+peptide_final_df = normalize_plates(dataframes, dics_internorm)    
+
+protein_df = get_protein_values(peptide_final_df)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+       
 # =============================================================================
 # plate1 = pd.read_csv('ResultsSQ_plate1.csv', sep=';')
 # 
