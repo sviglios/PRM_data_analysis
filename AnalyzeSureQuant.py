@@ -220,7 +220,54 @@ def remove_outliers(master_df, flag, perc):
     else:
         return master_df
 
+def pretty_plots(pdata):
+    
 
+    sns.set(style="ticks")
+
+    # initialize the figure with a logarithmic x axis
+    f, ax = plt.subplots(figsize=(7, 6))
+    ax.set_xscale("log")    
+    sns.boxplot(x="total_area_protein", y="protein", hue="condition", data=pdata, palette="vlag")
+    
+    # tweak the visual presentation
+    ax.xaxis.grid(True)
+    ax.set(ylabel="")
+    ax.set(xlim = (0.000001,110))
+    ax.legend(loc='center left', bbox_to_anchor=(1.08, 0.95), ncol=1)
+    sns.despine(trim=True, left=True)
+    
+    # start new plot
+    plt.figure()
+    
+    # lineplot for acute
+    ac_line = sns.lineplot(x="timepoint", y="total_area_protein",
+                 hue="protein", data=pdata[pdata.condition == "Acute"])
+    ac_line.legend(loc='center left', bbox_to_anchor=(1.08, 0.8), ncol=1)
+    ac_line.set_title("Acute")
+
+    # start new plot
+    plt.figure()
+    
+    # lineplot for impaired
+    imp_line = sns.lineplot(x="timepoint", y="total_area_protein",
+                 hue="protein", data=pdata[pdata.condition == "Impaired"])
+    imp_line.legend(loc='center left', bbox_to_anchor=(1.08, 0.8), ncol=1)
+    imp_line.set_title("Impaired")
+    
+    # initialize the figure with a logarithmic x axis
+    f, ax = plt.subplots(figsize=(7, 6))
+    ax.set_xscale("log")    
+    sns.boxplot(x="total_area_protein", y="protein", hue="type", data=pdata, palette="vlag")
+    
+    # tweak the visual presentation
+    ax.xaxis.grid(True)
+    ax.set(ylabel="")
+    ax.set(xlim = (0.000001,110))
+    ax.legend(loc='center left', bbox_to_anchor=(1.08, 0.95), ncol=1)
+    sns.despine(trim=True, left=True)
+    
+    
 
 #run things under here
       
