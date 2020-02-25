@@ -24,7 +24,7 @@ import pandas as pd
 import statistics as stat
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
-
+from scipy import stats
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -129,9 +129,10 @@ def normalize_plates(dataframes, dics_innernorm):
             df = dataframes[d]
             median = 0        
             if seq in list(df.peptide_sequence.unique()):
-                median = dics_internorm[d][seq]        
+                median = dics_innernorm[d][seq]        
             median_lst[i].append(median)
-    
+            median_lst[i].append(median)
+            
     #remove seqs not present in all plates
     ind_del = []
     for s in range(len(seq_lst)):
@@ -177,8 +178,10 @@ def get_protein_values(master_df):
     protein_df = master_df.groupby(['protein_name','replicate_name', 'sample', 'condition',
            'timepoint', 'type'], as_index = False)['total_area_plate_norm'].mean()
     
+    #clean columns fro later visualization steps
     protein_df = protein_df.rename(columns = {'total_area_plate_norm':'total_area_protein'})
     protein_df['protein'] = protein_df.protein_name.str[10:-6]
+    protein_df['patient'] = protein_df['sample'].str[:-3]
     
     return protein_df
 
@@ -186,7 +189,7 @@ def get_protein_values(master_df):
 def rescale(master_df):
     '''Rescale values from 0 - 100, for each protein individually'''
     
-    scaled_df = pd.DataFrame(columns = protein_df.columns)
+    scaled_df = pd.DataFrame(columns = master_df.columns)
     proteins = master_df.protein.unique()
     
     for prot in proteins:
@@ -483,44 +486,198 @@ def lineplot(rescaled_df):
     plt.subplots_adjust(top=0.92)
     plt.savefig('Subplot_lineplot_all.png', dpi = 300, format = 'png')
     plt.close()
+
+
+def heatmap(master_df):  
+    '''Heatmap for each individual protein, patient-timepoint'''
     
+    cmaps = ['Greys', 'Purples', 'Blues', 'Greens', 'Oranges', 'Reds',
+            'YlOrBr', 'YlOrRd', 'OrRd', 'PuRd', 'RdPu', 'BuPu',
+            'GnBu', 'PuBu', 'YlGnBu', 'PuBuGn', 'BuGn', 'YlGn']
+
+    proteins = master_df.protein.unique()
     
+    for i in range(len(proteins)):
+        
+        cbarval = False
+        if (i +1) %2 == 0:
+            cbarval = True
+        
+        prot_frame = master_df[master_df.protein == proteins[i]]
+        #https://seaborn.pydata.org/generated/seaborn.heatmap.html
+        heat_frame = prot_frame.pivot('patient','timepoint', 'total_area_protein')
+        
+        plt.figure(figsize=(6,8))
+        ax = plt.axes()
+        sns.heatmap(heat_frame, vmin = 0, vmax = 25, cmap = cmaps[i], ax = ax, cbar= cbarval)
+        ax.set_title(proteins[i])
+        plt.savefig(f'Heatmap_{proteins[i]}.png', dpi = 300, format = 'png')
+        plt.close()
+
+
+def clustermap(master_df):
+    '''Clustermap for each individual protein, patient-timepoint'''
+    
+    cmaps = ['Greys', 'Purples', 'Blues', 'Greens', 'Oranges', 'Reds',
+            'YlOrBr', 'YlOrRd', 'OrRd', 'PuRd', 'RdPu', 'BuPu',
+            'GnBu', 'PuBu', 'YlGnBu', 'PuBuGn', 'BuGn', 'YlGn']
+
+    proteins = master_df.protein.unique()
+    
+    for i in range(len(proteins)):
+        
+        prot_frame = master_df[master_df.protein == proteins[i]]
+        heat_frame = prot_frame.pivot('patient','timepoint', 'total_area_protein')
+        cluster_frame = heat_frame[list(heat_frame.columns)[:7]]
+        #sample 325 is missing
+        
+        for col in cluster_frame.columns:
+            cluster_frame[col] = np.log(cluster_frame[col])
+        
+        cluster_frame = cluster_frame.replace([np.inf, -np.inf], np.nan)
+        cluster_frame = cluster_frame.fillna(0)
+        
+        sns.clustermap(cluster_frame, cmap = cmaps[i], linewidths=.5, vmin = -3, 
+                       vmax = 4.5, yticklabels=True, figsize =(8, 12))
+        
+        plt.suptitle(f'{proteins[i]}')
+        plt.savefig(f'Clustermap_{proteins[i]}_zscore.png', dpi = 300, format = 'png')
+        plt.close()
+
+
+def streamflow(master_df):
+    
+    cond = master_df[master_df.condition == 'Impaired']
+    cond = cond.groupby(['protein', 'timepoint'], as_index = False).mean()
+    cond = cond.pivot('timepoint', 'protein', 'total_area_protein')
+    
+    plt.figure(figsize=(8,6))
+    plt.stackplot(cond.index,cond.T, labels = cond.columns, baseline = 'weighted_wiggle')
+    #plt.ylim([-18,18])
+    plt.title('All proteins, impaired healing')
+    plt.xlabel('Timepoint')
+    plt.ylabel('Weighted protein amount')
+    plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+    plt.savefig('Streamflow_impaired.png', dpi = 300, format = 'png')
+
+
+
 #run things under here
-      
-file_pre = 'ResultsSQ_plate'
-dataframes = []
-dics_internorm = []
+  
+# =============================================================================
+# file_pre = 'ResultsSQ_plate'
+# dataframes = []
+# dics_internorm = []
+# 
+# for i in range(1,5):
+#     
+#     filename = file_pre + str(i) + '.csv'
+#     plate = read_clean_plate(filename)
+#     
+#     plate_df, lst_norm = normalize_innerplate(plate)
+#     
+#     dataframes.append(plate_df)
+#     dics_internorm.append(lst_norm)
+# 
+# peptide_final_df = normalize_plates(dataframes, dics_internorm)    
+# 
+# protein_df = get_protein_values(peptide_final_df)
+# #protein_df.to_excel('Norm_prot.xlsx')
+# 
+# treated_df = remove_outliers(protein_df, flag = False, perc = 0.10)
+# 
+# rescaled_df = rescale(treated_df)
+# #rescaled_df.to_excel('Scaled_prot.xlsx')
+# 
+# sns.set(context='notebook', style='whitegrid', palette = 'deep', font= 'Helvetica')
+# 
+# '''plot function calling'''
+# #hue timepoint or type
+# #boxplot_all(rescaled_df, hue = 'type')
+# #boxplot_subplots(rescaled_df, hue = 'type')
+# #pretty_plots(rescaled_df)
+# #boxplot_type(rescaled_df, hue = 'condition')
+# #lineplot(rescaled_df)
+# #heatmap(rescaled_df)
+# =============================================================================
 
-for i in range(1,5):
+# =============================================================================
+# temp = rescaled_df[(rescaled_df.protein == 'TNFA') & (rescaled_df.condition == 'Impaired')]
+# sns.violinplot(x = 'timepoint', y = 'total_area_protein', scale="count", inner="quartile", 
+#                data= temp, bw=.5)
+# =============================================================================
+        
+# =============================================================================
+# sns.catplot(x="timepoint", y="total_area_protein", hue = 'condition', col="protein",
+#                 col_wrap = 2, data=rescaled_df, 
+#                 kind="violin", split=False, scale="count", inner="quartile", 
+#                 scale_hue=False, bw=.5, height=5, aspect=1);
+# plt.savefig('violin_all.png', dpi = 300, format = 'png')
+# =============================================================================
+        
+# =============================================================================
+# sns.catplot(x="timepoint", y="total_area_protein", col="protein",
+#                 col_wrap = 2, data=rescaled_df[rescaled_df.condition == 'Impaired'], 
+#                 kind="violin", scale="count", inner="quartile", 
+#                 scale_hue=False, bw=.2, height=5, aspect=1,);
+# plt.suptitle('Impaired, all timepoints')
+# plt.tight_layout()
+# plt.savefig('violin_impaired_very_low_bw.png', dpi = 300, format = 'png')
+# =============================================================================
     
-    filename = file_pre + str(i) + '.csv'
-    plate = read_clean_plate(filename)
     
-    plate_df, lst_norm = normalize_innerplate(plate)
-    
-    dataframes.append(plate_df)
-    dics_internorm.append(lst_norm)
 
-peptide_final_df = normalize_plates(dataframes, dics_internorm)    
-
-protein_df = get_protein_values(peptide_final_df)
-#protein_df.to_excel('Norm_prot.xlsx')
-
-treated_df = remove_outliers(protein_df, flag = False, perc = 0.10)
-
-rescaled_df = rescale(treated_df)
-#rescaled_df.to_excel('Scaled_prot.xlsx')
-
-sns.set(context='notebook', style='whitegrid', palette = 'deep', font= 'Helvetica')
-
-'''plot function calling'''
-#hue timepoint or type
-#boxplot_all(rescaled_df, hue = 'type')
-#boxplot_subplots(rescaled_df, hue = 'type')
-#pretty_plots(rescaled_df)
-#boxplot_type(rescaled_df, hue = 'condition')
-#lineplot(rescaled_df)
-
+# =============================================================================
+# #CHECK IF SAMPLES ARE NORMALLY DISTRIBUTED
+# mod_df = rescaled_df[rescaled_df.condition == 'Impaired']
+# for i in mod_df.protein.unique():
+#     for k in mod_df.timepoint.unique():
+#         test = mod_df[(mod_df.protein == i) & (mod_df.timepoint == k)]
+# 
+#         k2, p = stats.normaltest(np.array(test.total_area_protein), nan_policy = 'omit')
+#         alpha = 1e-3
+#         if p > alpha:
+#             print(i, k, p)
+# 
+# test = rescaled_df[(rescaled_df.protein == 'IL1B') & (rescaled_df.timepoint == 7) &
+#                    (rescaled_df.condition == 'Impaired')]
+# 
+# plt.hist(test.total_area_protein)
+# 
+# for i in rescaled_df.protein.unique():
+#     test = rescaled_df[(rescaled_df.protein == i) & (rescaled_df.condition == 'Impaired')]
+#     h, p = stats.kruskal(*[group["total_area_protein"].values for name, group in test.groupby("timepoint")])
+#     print(i,p)
+#     
+# test = rescaled_df[(rescaled_df.protein == i) & (rescaled_df.condition == 'Impaired')]
+# time = 1
+# 
+# fh = open('MannWhitney_res.txt', 'w')
+# 
+# for k in rescaled_df.protein.unique():
+#     s = 1
+#     c = 2
+#     
+#     while s <= 7:
+#         for i in range(c,8):
+#             sample1 = rescaled_df[(rescaled_df.protein == k) & (rescaled_df.condition == 'Acute') 
+#                                   & (rescaled_df.timepoint == s)]
+#             sample2 = rescaled_df[(rescaled_df.protein == k) & (rescaled_df.condition == 'Acute') 
+#                                   & (rescaled_df.timepoint == i)]
+#             u, p = stats.mannwhitneyu(sample1.total_area_protein, sample2.total_area_protein)
+#             
+#             if p < 0.001:
+#                 fh.write(f'{k}\t{s} + {i} - {p}\n')
+#         
+#         c += 1
+#         s += 1
+#     
+#     fh.write('\n')
+#     
+# fh.close()
+#         
+# =============================================================================
+        
 
 # =============================================================================
 # plate1 = pd.read_csv('ResultsSQ_plate1.csv', sep=';')
