@@ -25,8 +25,10 @@ import statistics as stat
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from scipy import stats
+from statsmodels.stats import multitest
 import matplotlib.pyplot as plt
 import seaborn as sns
+
 
 '''
 sum ion intensity -> peptide signal
@@ -547,21 +549,38 @@ def clustermap(master_df):
 
 def streamflow(master_df):
     
-    cond = master_df[master_df.condition == 'Impaired']
+    cond = master_df[master_df.condition == 'Acute']
     cond = cond.groupby(['protein', 'timepoint'], as_index = False).mean()
     cond = cond.pivot('timepoint', 'protein', 'total_area_protein')
     
-    plt.figure(figsize=(8,6))
+    plt.figure(figsize=(9,6))
     plt.stackplot(cond.index,cond.T, labels = cond.columns, baseline = 'weighted_wiggle')
     #plt.ylim([-18,18])
-    plt.title('All proteins, impaired healing')
+    plt.title('All proteins, acute healing')
     plt.xlabel('Timepoint')
     plt.ylabel('Weighted protein amount')
+    plt.subplots_adjust(right=0.82)
     plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-    plt.savefig('Streamflow_impaired.png', dpi = 300, format = 'png')
+    
+    plt.savefig('Streamflow_acute.png', dpi = 300, format = 'png')
 
 
-
+def plot_all(master_df):
+    
+    for patient in master_df.patient.unique():
+        
+        test = master_df[(master_df['patient'] == patient)]
+        sns.set(style = 'ticks')
+        g = sns.relplot(x='timepoint', y='total_area_protein', col ='protein', data = test, col_wrap= 2, 
+                    height=3, aspect=1, kind = 'line')
+        
+        plt.subplots_adjust(top=0.92)
+        g.fig.suptitle(f'Patient {patient}')
+        plt.savefig(f'{patient}.png', dpi = 300, format = 'png')
+        plt.close()
+        
+        
+        
 #run things under here
   
 # =============================================================================
@@ -601,6 +620,8 @@ def streamflow(master_df):
 # #heatmap(rescaled_df)
 # =============================================================================
 
+
+'''PLOTS'''
 # =============================================================================
 # temp = rescaled_df[(rescaled_df.protein == 'TNFA') & (rescaled_df.condition == 'Impaired')]
 # sns.violinplot(x = 'timepoint', y = 'total_area_protein', scale="count", inner="quartile", 
@@ -625,8 +646,19 @@ def streamflow(master_df):
 # plt.savefig('violin_impaired_very_low_bw.png', dpi = 300, format = 'png')
 # =============================================================================
     
-    
+       
+# =============================================================================
+# test = rescaled_df[(rescaled_df['patient'] == '02A-001')]
+#     
+# g = sns.catplot(x='timepoint', y='total_area_protein', col ='protein', data = test, col_wrap= 2, 
+#             height=4, aspect=0.9, kind = 'bar', color = sns.color_palette('deep')[0])
+# 
+# plt.subplots_adjust(top=0.92)
+# g.fig.suptitle('Patient 02A-001')
+# =============================================================================
 
+    
+'''STATISTICS'''
 # =============================================================================
 # #CHECK IF SAMPLES ARE NORMALLY DISTRIBUTED
 # mod_df = rescaled_df[rescaled_df.condition == 'Impaired']
@@ -649,10 +681,44 @@ def streamflow(master_df):
 #     h, p = stats.kruskal(*[group["total_area_protein"].values for name, group in test.groupby("timepoint")])
 #     print(i,p)
 #     
-# test = rescaled_df[(rescaled_df.protein == i) & (rescaled_df.condition == 'Impaired')]
-# time = 1
+# #MEC vs HYC
+# for k in rescaled_df.protein.unique():
+#     prot_df = rescaled_df[rescaled_df.protein == k]
+#     testM = prot_df[prot_df.type == 'MEC']
+#     testH = prot_df[prot_df.type == 'HYC']
+#     u, p = stats.mannwhitneyu(testM.total_area_protein, testH.total_area_protein)
+#     print(k, p)
 # 
-# fh = open('MannWhitney_res.txt', 'w')
+# #All timepoints, acute vs impaired
+# ind_l = []
+# p_l = []
+# t_l = []
+# for k in rescaled_df.protein.unique():
+#     prot_df = rescaled_df[rescaled_df.protein == k]
+#     for i in range(1,8):
+#         testA = prot_df[(prot_df.condition == 'Acute') & (rescaled_df.timepoint == i)]
+#         testI = prot_df[(prot_df.condition == 'Impaired') & (rescaled_df.timepoint == i)]
+#         u, p = stats.mannwhitneyu(testA.total_area_protein, testI.total_area_protein)
+#         print(p, i, k)
+#         ind_l.append(k)
+#         t_l.append(i)
+#         p_l.append(p)
+# 
+# 
+# reject, p_lnew, asid, abon = multitest.multipletests(p_l,alpha = 0.01, method = 'bonferroni')
+# 
+# fh = open('MannwhitneyU_res_conditionpertimepoint.txt', 'w')
+# 
+# for i in range(len(reject)):
+#     if reject[i]:
+#         fh.write(f'{ind_l[i]}\t{t_l[i]} - {p_lnew[i]}\n')
+# fh.close()
+# 
+# 
+# ind_l = []
+# p_l = []
+# t_l = [] 
+# t2_l = []
 # 
 # for k in rescaled_df.protein.unique():
 #     s = 1
@@ -660,25 +726,33 @@ def streamflow(master_df):
 #     
 #     while s <= 7:
 #         for i in range(c,8):
-#             sample1 = rescaled_df[(rescaled_df.protein == k) & (rescaled_df.condition == 'Acute') 
+#             sample1 = rescaled_df[(rescaled_df.protein == k) & (rescaled_df.condition == 'Impaired') 
 #                                   & (rescaled_df.timepoint == s)]
-#             sample2 = rescaled_df[(rescaled_df.protein == k) & (rescaled_df.condition == 'Acute') 
+#             sample2 = rescaled_df[(rescaled_df.protein == k) & (rescaled_df.condition == 'Impaired') 
 #                                   & (rescaled_df.timepoint == i)]
 #             u, p = stats.mannwhitneyu(sample1.total_area_protein, sample2.total_area_protein)
-#             
-#             if p < 0.001:
-#                 fh.write(f'{k}\t{s} + {i} - {p}\n')
+#             ind_l.append(k)
+#             t_l.append(s)
+#             t2_l.append(i)
+#             p_l.append(p)
 #         
 #         c += 1
 #         s += 1
 #     
-#     fh.write('\n')
+# reject, p_lnew, asid, abon = multitest.multipletests(p_l,alpha = 0.01, method = 'bonferroni')
+# 
+# fh = open('MannwhitneyU_res_proteinpertimepoint_impaired.txt', 'w')
+# 
+# for i in range(len(reject)):
+#     if reject[i]:
+#         fh.write(f'{ind_l[i]}\t{t_l[i]}+{t2_l[i]} - {p_lnew[i]}\n')
+# fh.close()
 #     
 # fh.close()
-#         
 # =============================================================================
-        
 
+      
+'''PROCESSING'''
 # =============================================================================
 # plate1 = pd.read_csv('ResultsSQ_plate1.csv', sep=';')
 # 

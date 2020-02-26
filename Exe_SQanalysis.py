@@ -41,14 +41,10 @@ rescaled_df = rescale(treated_df)
 # heatmap(rescaled_df)
 # 
 # clustermap(rescaled_df)
+#
+# streamflow(rescaled_df)
+#
+# plot_all(rescaled_df)
 # =============================================================================
 
 
-
-        
-        
-        
-        
-        
-        
-        
