@@ -28,7 +28,9 @@ from scipy import stats
 from statsmodels.stats import multitest
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+import scipy.integrate as integrate
+from decimal import Decimal
+import os 
 
 '''
 sum ion intensity -> peptide signal
@@ -46,18 +48,86 @@ FEWER PEPTIDES DO NOT HAVE VALUES FOR EITHER LIGHT OR HEAVY IN A FEW SAMPLES
 PROCESSING AND CLEANING UP FUNCTIONS
 '''
 
-
 def read_clean_plate(plate_file):
     '''Read plate, convert columns to an easier to select format,
     remove NA values, create column to store the normalized values'''
     
-    plate = pd.read_csv(plate_file, sep=';')
+    plate = pd.read_csv(plate_file, sep=',')
     plate.columns = plate.columns.str.strip().str.lower().str.replace(' ', '_').str.replace('(', '').str.replace(')', '')
     plate = plate.sort_values(by='replicate_name')
     plate = plate.fillna(0)
     plate['total_area_fragment_norm'] = 0
     
     return plate
+
+
+def ReadChrom():
+    '''Read all chromatograms, integrate area and calculate factor to scale values'''
+    
+    samples = range(1,366)
+    df = pd.DataFrame(columns=['RetentionTime','Intensity'])
+    folder = r'Chrom'
+    
+    for s in samples:
+        filename = os.path.join(folder,f'20200218_SS_MK_EVO_WF_{s}.raw_Ms_TIC_chromatogram.txt')
+        temp = pd.read_csv(filename, sep='\t')
+    
+        df = df.join(temp, lsuffix='', rsuffix=str(s), how='outer')
+    
+    df = df.drop(['RetentionTime','Intensity'], axis=1)
+    
+    lst_area = []
+    for s in samples:
+        lst_area.append(integrate.simps(df[f'Intensity{str(s)}'].dropna(), 
+                                        df[f'RetentionTime{str(s)}'].dropna())) 
+    factor = []
+    median = stat.median(lst_area)
+    for area in lst_area:
+        factor.append(median / area)
+    
+    return factor
+
+
+def ChromNorm(dataframe, factor):
+    '''Normalize based on chromatogram factor values'''
+    
+    df = dataframe[dataframe.fragment_ion == 'precursor']
+    light_df = pd.DataFrame(columns = df.columns)
+    
+    seqs = df.peptide_sequence.unique()
+    
+    for seq in seqs:    
+        pepdf = df[df['peptide_sequence'] == seq]
+        prec_masses = pepdf.precursor_mz.unique()
+        light_mass, heavy_mass = min(prec_masses), max(prec_masses)
+        pepdf_light = pepdf[pepdf.precursor_mz == light_mass]
+        light_df = light_df.append(pepdf_light)
+    
+    norm_df = pd.DataFrame(columns = light_df.columns)
+    for i, val in enumerate(factor):
+        rep_df = light_df[light_df.replicate_name == i+1]
+        col = np.array(rep_df.total_area_fragment)
+        rep_df['total_area_fragment_norm'] =  col * val
+        norm_df = norm_df.append(rep_df)
+    
+    return norm_df
+
+
+def get_protein_values2(master_df):      
+    '''Average values of all peptides for a given protein, across all samples.
+    Keep only the columns we need for analysis and clean up a bit. Rescale to 
+    a 0-1000 scale as well'''
+    
+    #average proteins based on peptides, keep columns of interest
+    protein_df = master_df.groupby(['protein_name','replicate_name', 'sample', 'condition',
+           'timepoint', 'type'], as_index = False)['total_area_fragment_norm'].mean()
+    
+    #clean columns fro later visualization steps
+    protein_df = protein_df.rename(columns = {'total_area_fragment_norm':'total_area_protein'})
+    protein_df['protein'] = protein_df.protein_name.str[10:-6]
+    protein_df['patient'] = protein_df['sample'].str[:-3]
+    
+    return protein_df
 
 
 def normalize_innerplate(plate):
@@ -90,7 +160,8 @@ def normalize_innerplate(plate):
         heavy_lst, light_lst = np.array(pepdf_heavy.total_area_fragment), np.array(pepdf_light.total_area_fragment)
           
         #normalize light values to heavy values
-        light_lst = light_lst * (heavy_lst / stat.median(heavy_lst))
+        #light_lst = light_lst * (heavy_lst / stat.median(heavy_lst))
+        light_lst = light_lst * (stat.median(heavy_lst) / heavy_lst)
         inter_plate = stat.median(heavy_lst)
         
         pepdf_light['total_area_fragment_norm'] = light_lst
@@ -152,7 +223,8 @@ def normalize_plates(dataframes, dics_innernorm):
     for s in range(len(seq_lst)):
         medls = median_lst[s]
         med = stat.median(medls)
-        median_lst[s] = np.array(median_lst[s]) / med
+        #median_lst[s] = np.array(median_lst[s]) / med
+        median_lst[s] = med / np.array(median_lst[s])
     
     for s in range(len(seq_lst)):
         
@@ -450,10 +522,11 @@ def lineplot(rescaled_df):
     sns.set(style="ticks")
     colors = sns.color_palette('muted')
     proteins = rescaled_df.protein.unique()
-    fig, ax = plt.subplots(3,2,figsize = (8,12))
+    proteins = ['TNFA', 'IL1B', 'MMP2', 'S10A8', 'S10A9', 'MMP9']
+    fig, ax = plt.subplots(2,3,figsize = (12,8))
     
     x = 0
-    for i in range(0, len(proteins), 2):
+    for i in range(0, len(proteins), 3):
         
         y = 0
         sns.lineplot(x="timepoint", y="total_area_protein",
@@ -464,11 +537,13 @@ def lineplot(rescaled_df):
         ax[x,y].set_xlabel('')
         ax[x,y].set_title(proteins[i])
         
-        if x == 1 and y == 0:
-            ax[x,y].set_ylabel('Normalized rel. concentration')
-        elif x == 2 and y == 0:
-            ax[x,y].set_xlabel('Protein')
-            ax[x,y].xaxis.set_label_coords(1.05, -0.1)
+        if y == 0:
+            ax[x,y].set_ylabel('Normalized rel. concentration', fontsize = 14)
+        if x == 1 and y < 3:
+            ax[x,y].set_xlabel('Sampling timepoint')
+        #elif x == 1 and y == 0:
+            #ax[x,y].set_xlabel('Protein')
+            #ax[x,y].xaxis.set_label_coords(1.05, -0.1)
         
         y += 1
         sns.lineplot(x="timepoint", y="total_area_protein",
@@ -479,11 +554,26 @@ def lineplot(rescaled_df):
         ax[x,y].set_xlabel('')    
         ax[x,y].set_title(proteins[i + 1])
         
-        if x == 2 and y == 1:
-            ax[x,y].legend()
+        if x == 1 and y < 3:
+            ax[x,y].set_xlabel('Sampling timepoint')
+        
+        y += 1
+        sns.lineplot(x="timepoint", y="total_area_protein",
+                hue="condition", data=rescaled_df[rescaled_df.protein == proteins[i+2]], color = colors[i], ax = ax[x,y])
+        
+        if x == 0: 
+            ax[x,y].get_legend().set_visible(False)
+        ax[x,y].set_ylabel('')
+        ax[x,y].set_xlabel('')    
+        ax[x,y].set_title(proteins[i + 2])
+        
+        if x == 1 and y < 3:
+            ax[x,y].set_xlabel('Sampling timepoint')
         x += 1
+        
+        plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
     
-    fig.suptitle(f'All timepoints')
+    fig.suptitle(f'Proteins')
     plt.tight_layout()
     plt.subplots_adjust(top=0.92)
     plt.savefig('Subplot_lineplot_all.png', dpi = 300, format = 'png')
@@ -530,7 +620,7 @@ def clustermap(master_df):
         
         prot_frame = master_df[master_df.protein == proteins[i]]
         heat_frame = prot_frame.pivot('patient','timepoint', 'total_area_protein')
-        cluster_frame = heat_frame[list(heat_frame.columns)[:7]]
+        cluster_frame = heat_frame[list(heat_frame.columns)[:6]]
         #sample 325 is missing
         
         for col in cluster_frame.columns:
@@ -539,24 +629,23 @@ def clustermap(master_df):
         cluster_frame = cluster_frame.replace([np.inf, -np.inf], np.nan)
         cluster_frame = cluster_frame.fillna(0)
         
-        sns.clustermap(cluster_frame, cmap = cmaps[i], linewidths=.5, vmin = -3, 
-                       vmax = 4.5, yticklabels=True, figsize =(8, 12))
+        sns.clustermap(cluster_frame, cmap = cmaps[i], linewidths=.5, yticklabels=True, figsize =(8, 12))
         
         plt.suptitle(f'{proteins[i]}')
-        plt.savefig(f'Clustermap_{proteins[i]}_zscore.png', dpi = 300, format = 'png')
+        plt.savefig(f'Clustermap_{proteins[i]}.png', dpi = 300, format = 'png')
         plt.close()
 
 
-def streamflow(master_df):
+def streamflow(master_df, cond):
     
-    cond = master_df[master_df.condition == 'Acute']
+    cond = master_df[master_df.condition == cond]
     cond = cond.groupby(['protein', 'timepoint'], as_index = False).mean()
     cond = cond.pivot('timepoint', 'protein', 'total_area_protein')
     
     plt.figure(figsize=(9,6))
     plt.stackplot(cond.index,cond.T, labels = cond.columns, baseline = 'weighted_wiggle')
     #plt.ylim([-18,18])
-    plt.title('All proteins, acute healing')
+    plt.title(f'All proteins, acute healing')
     plt.xlabel('Timepoint')
     plt.ylabel('Weighted protein amount')
     plt.subplots_adjust(right=0.82)
@@ -571,7 +660,7 @@ def plot_all(master_df):
         
         test = master_df[(master_df['patient'] == patient)]
         sns.set(style = 'ticks')
-        g = sns.relplot(x='timepoint', y='total_area_protein', col ='protein', data = test, col_wrap= 2, 
+        g = sns.relplot(x='timepoint', y='total_area_protein', col ='protein', data = test, col_wrap= 3, 
                     height=3, aspect=1, kind = 'line')
         
         plt.subplots_adjust(top=0.92)
@@ -580,7 +669,67 @@ def plot_all(master_df):
         plt.close()
         
         
+def lineplot2(rescaled_df):
+    sns.set(style="ticks")
+    colors = sns.color_palette('muted')
+    proteins = rescaled_df.protein.unique()
+    fig, ax = plt.subplots(3,3,figsize = (12,12))
+    
+    x = 0
+    for i in range(0, len(proteins), 3):
         
+        y = 0
+        sns.lineplot(x="timepoint", y="total_area_protein",
+             hue="condition", data=rescaled_df[rescaled_df.protein == proteins[i]], color = colors[i], ax = ax[x,y])
+        
+        ax[x,y].get_legend().set_visible(False)
+        ax[x,y].set_ylabel('')
+        ax[x,y].set_xlabel('')
+        ax[x,y].set_title(proteins[i])
+        
+        if y == 0:
+            ax[x,y].set_ylabel('Rel. concentration', fontsize = 14)
+        if x == 1 and y < 3:
+            ax[x,y].set_xlabel('Sampling timepoint')
+        #elif x == 1 and y == 0:
+            #ax[x,y].set_xlabel('Protein')
+            #ax[x,y].xaxis.set_label_coords(1.05, -0.1)
+        
+        y += 1
+        sns.lineplot(x="timepoint", y="total_area_protein",
+                hue="condition", data=rescaled_df[rescaled_df.protein == proteins[i+1]], color = colors[i], ax = ax[x,y])
+    
+        ax[x,y].get_legend().set_visible(False)
+        ax[x,y].set_ylabel('')
+        ax[x,y].set_xlabel('')    
+        ax[x,y].set_title(proteins[i + 1])
+        
+        if x == 1 and y < 3:
+            ax[x,y].set_xlabel('Sampling timepoint')
+        
+        y += 1
+        sns.lineplot(x="timepoint", y="total_area_protein",
+                hue="condition", data=rescaled_df[rescaled_df.protein == proteins[i+2]], color = colors[i], ax = ax[x,y])
+        
+        if x == 0: 
+            ax[x,y].get_legend().set_visible(False)
+        ax[x,y].set_ylabel('')
+        ax[x,y].set_xlabel('')    
+        ax[x,y].set_title(proteins[i + 2])
+        
+        if x == 1 and y < 3:
+            ax[x,y].set_xlabel('Sampling timepoint')
+        x += 1
+        
+        plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+    
+    fig.suptitle(f'Proteins')
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.92)
+    plt.savefig('Subplot_lineplot_all.png', dpi = 300, format = 'png')
+    plt.close()
+
+     
 #run things under here
   
 # =============================================================================
