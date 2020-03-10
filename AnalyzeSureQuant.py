@@ -32,6 +32,7 @@ import scipy.integrate as integrate
 from decimal import Decimal
 import os 
 
+
 '''
 sum ion intensity -> peptide signal
 normalize for heavy pep signal sample wise
@@ -44,9 +45,11 @@ SOME PEPTIDES DO NOT HAVE VALUES IN THE LIGHT VERSION IN SOME SAMPLES
 FEWER PEPTIDES DO NOT HAVE VALUES FOR EITHER LIGHT OR HEAVY IN A FEW SAMPLES
 '''
 
+
 '''
 PROCESSING AND CLEANING UP FUNCTIONS
 '''
+
 
 def read_clean_plate(plate_file):
     '''Read plate, convert columns to an easier to select format,
@@ -99,7 +102,7 @@ def ChromNorm(dataframe, factor):
     for seq in seqs:    
         pepdf = df[df['peptide_sequence'] == seq]
         prec_masses = pepdf.precursor_mz.unique()
-        light_mass, heavy_mass = min(prec_masses), max(prec_masses)
+        light_mass = min(prec_masses)
         pepdf_light = pepdf[pepdf.precursor_mz == light_mass]
         light_df = light_df.append(pepdf_light)
     
@@ -115,8 +118,7 @@ def ChromNorm(dataframe, factor):
 
 def get_protein_values2(master_df):      
     '''Average values of all peptides for a given protein, across all samples.
-    Keep only the columns we need for analysis and clean up a bit. Rescale to 
-    a 0-1000 scale as well'''
+    Keep only the columns we need for analysis and clean up a bit.'''
     
     #average proteins based on peptides, keep columns of interest
     protein_df = master_df.groupby(['protein_name','replicate_name', 'sample', 'condition',
@@ -245,8 +247,7 @@ def normalize_plates(dataframes, dics_innernorm):
 
 def get_protein_values(master_df):      
     '''Average values of all peptides for a given protein, across all samples.
-    Keep only the columns we need for analysis and clean up a bit. Rescale to 
-    a 0-1000 scale as well'''
+    Keep only the columns we need for analysis and clean up a bit.'''
     
     #average proteins based on peptides, keep columns of interest
     protein_df = master_df.groupby(['protein_name','replicate_name', 'sample', 'condition',
@@ -305,9 +306,36 @@ def remove_outliers(master_df, flag, perc):
         return master_df
 
 
+def fold_change(rescaled_df):
+    '''Creates a column and calculates fold change from timepoint 1'''
+    
+    rescaled_df['fold_change'] = 0
+
+    for prot in rescaled_df.protein.unique():
+        
+        for pat in rescaled_df.patient.unique():
+            
+            ind = rescaled_df[(rescaled_df.protein == prot) & (rescaled_df.patient == pat)].index
+            init_val = rescaled_df.loc[ind][rescaled_df.loc[ind].timepoint == 1].total_area_protein.iloc[0]
+            #print(rescaled_df.loc[ind][rescaled_df.loc[ind].timepoint == 1][['protein','patient','timepoint']])
+            
+            for i in ind:
+                cell_val = rescaled_df.loc[i,'total_area_protein']
+                if init_val == 0:
+                    rescaled_df.loc[i,'fold_change'] =  0
+                else:
+                    if cell_val < init_val: 
+                        rescaled_df.loc[i,'fold_change'] =  (cell_val / init_val) * (-1)
+                    else:
+                        rescaled_df.loc[i,'fold_change'] =  (cell_val / init_val)
+                        
+    return rescaled_df
+
+          
 '''
 VISUALIZATION FUNCTIONS
 '''
+
 
 def pretty_plots(pdata):
     '''Creates 4 plots. Two boxplots of impaired vs acute and MEC vs HYC, 
@@ -576,7 +604,7 @@ def lineplot(rescaled_df):
     fig.suptitle(f'Proteins')
     plt.tight_layout()
     plt.subplots_adjust(top=0.92)
-    plt.savefig('Subplot_lineplot_all.png', dpi = 300, format = 'png')
+    plt.savefig('Subplot_lineplot_all1.png', dpi = 300, format = 'png')
     plt.close()
 
 
@@ -689,11 +717,8 @@ def lineplot2(rescaled_df):
         
         if y == 0:
             ax[x,y].set_ylabel('Rel. concentration', fontsize = 14)
-        if x == 1 and y < 3:
+        if x == 2 and y < 3:
             ax[x,y].set_xlabel('Sampling timepoint')
-        #elif x == 1 and y == 0:
-            #ax[x,y].set_xlabel('Protein')
-            #ax[x,y].xaxis.set_label_coords(1.05, -0.1)
         
         y += 1
         sns.lineplot(x="timepoint", y="total_area_protein",
@@ -704,20 +729,19 @@ def lineplot2(rescaled_df):
         ax[x,y].set_xlabel('')    
         ax[x,y].set_title(proteins[i + 1])
         
-        if x == 1 and y < 3:
+        if x == 2 and y < 3:
             ax[x,y].set_xlabel('Sampling timepoint')
         
         y += 1
         sns.lineplot(x="timepoint", y="total_area_protein",
                 hue="condition", data=rescaled_df[rescaled_df.protein == proteins[i+2]], color = colors[i], ax = ax[x,y])
         
-        if x == 0: 
-            ax[x,y].get_legend().set_visible(False)
+        ax[x,y].get_legend().set_visible(False)
         ax[x,y].set_ylabel('')
         ax[x,y].set_xlabel('')    
         ax[x,y].set_title(proteins[i + 2])
         
-        if x == 1 and y < 3:
+        if x == 2 and y < 3:
             ax[x,y].set_xlabel('Sampling timepoint')
         x += 1
         
@@ -730,6 +754,7 @@ def lineplot2(rescaled_df):
     plt.close()
 
      
+    
 #run things under here
   
 # =============================================================================
