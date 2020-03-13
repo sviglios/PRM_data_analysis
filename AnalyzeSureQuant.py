@@ -323,11 +323,9 @@ def fold_change(rescaled_df):
                 cell_val = rescaled_df.loc[i,'total_area_protein']
                 if init_val == 0:
                     rescaled_df.loc[i,'fold_change'] =  0
+                    init_val = cell_val
                 else:
-                    if cell_val < init_val: 
-                        rescaled_df.loc[i,'fold_change'] =  (cell_val / init_val) * (-1)
-                    else:
-                        rescaled_df.loc[i,'fold_change'] =  (cell_val / init_val)
+                    rescaled_df.loc[i,'fold_change'] =  (cell_val / init_val)
                         
     return rescaled_df
 
@@ -751,9 +749,48 @@ def lineplot2(rescaled_df):
     plt.tight_layout()
     plt.subplots_adjust(top=0.92)
     plt.savefig('Subplot_lineplot_all.png', dpi = 300, format = 'png')
+    plt.savefig('Subplot_lineplot_all.svg', format = 'svg')
     plt.close()
 
-     
+
+def final_box(final_df, col):
+    sns.set(context='notebook', style='darkgrid', palette = 'deep', font= 'Helvetica')
+    
+    c = 0
+    colors = ['blue', 'orange', 'green', 'red', 'purple', 'olive', 'cyan', 'brown', 'pink']
+    titles = final_df.protein_name.unique()
+    
+    for prot in final_df.protein.unique():
+        
+        fig, ax = plt.subplots(2,1, figsize=(6,8))
+              
+        sns.boxplot(x='timepoint', y=col,
+                    data = final_df[(final_df.protein == prot) & (final_df.condition == 'Impaired')], 
+                    ax = ax[0], showfliers = False, whis = 1.5, color = colors[c])
+        
+        ax[0].set_ylabel('Relative concentration')
+        ax[0].set_title('Impaired', size=14)
+        ymin, ymax = ax[0].get_ylim()
+        ax[0].set_ylim([ymin+(ymin*0.1), ymax+(ymax*0.1)])
+        
+        sns.boxplot(x='timepoint', y=col, 
+                    data = final_df[(final_df.protein == prot) & (final_df.condition == 'Acute')], 
+                    ax = ax[1], showfliers = False, whis = 1.5, color = 'tab:'+colors[c])
+        
+        ymin, ymax = ax[1].get_ylim()
+        ax[1].set_ylim([ymin+(ymin*0.1), ymax+(ymax*0.1)])
+        
+        ax[1].set_ylabel('Relative concentration')
+        ax[1].set_title('Acute', size= 14)
+        
+        acc = titles[c].split('|')[1]
+        plt.suptitle(f'{prot} - {acc}', x = 0.24, size = 15)
+        #plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+        plt.tight_layout(pad = 1.5)
+        plt.subplots_adjust(top=0.92, left=0.1, right=0.95)
+        plt.savefig(prot+f'_{col}box.svg', format='svg')
+        
+        c += 1
     
 #run things under here
   
