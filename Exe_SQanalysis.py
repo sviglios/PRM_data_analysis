@@ -8,8 +8,6 @@ Created on Tue Feb 25 12:50:59 2020
 #import functions
 from AnalyzeSureQuant import *
 
-
-
 #RESULTS 2
 
 #process data
@@ -29,53 +27,37 @@ protein_df = get_protein_values2(df)
 #protein_df = protein_df[protein_df.timepoint != 1]
 
 rescaled_df = rescale(protein_df)    
-final_df = fold_change(rescaled_df)   
+fold_df = fold_change(rescaled_df)
 
+#log transformation
+# =============================================================================
+# log_df = fold_df.copy()
+# log_df['total_area_protein'] = np.log2(log_df['total_area_protein'])
+# =============================================================================
 
 # =============================================================================
-# #Statistics kruskal mann whitney for condition comparing timepoints
-# for cond in ['Acute', 'Impaired']:
-#     
-#     fh = open(f'Kruskal_allprot_{cond}.txt', 'w')
-#     for i in rescaled_df.protein.unique():
-#         test = rescaled_df[(rescaled_df.protein == i) & (rescaled_df.condition == cond)]
-#         h, p = stats.kruskal(*[group["total_area_protein"].values for name, group in test.groupby("timepoint")])
-#         print(i,'\t',p,'\n', file = fh)
-#     fh.close()
-#     
-#     ind_l = []
-#     p_l = []
-#     t_l = [] 
-#     t2_l = []
-#     
-#     for k in rescaled_df.protein.unique():
-#         s = 1
-#         c = 2
-#         
-#         while s <= 7:
-#             for i in range(c,8):
-#                 sample1 = rescaled_df[(rescaled_df.protein == k) & (rescaled_df.condition == cond) 
-#                                       & (rescaled_df.timepoint == s)]
-#                 sample2 = rescaled_df[(rescaled_df.protein == k) & (rescaled_df.condition == cond) 
-#                                       & (rescaled_df.timepoint == i)]
-#                 u, p = stats.mannwhitneyu(sample1.total_area_protein, sample2.total_area_protein)
-#                 ind_l.append(k)
-#                 t_l.append(s)
-#                 t2_l.append(i)
-#                 p_l.append(p)
-#             
-#             c += 1
-#             s += 1
-#         
-#     reject, p_lnew, asid, abon = multitest.multipletests(p_l,alpha = 0.01, method = 'bonferroni')
-#     
-#     fh = open(f'MannwhitneyU_res_proteinpertimepoint_{cond}.txt', 'w')
-#     
-#     for i in range(len(reject)):
-#         if reject[i]:
-#             fh.write(f'{ind_l[i]}\t{t_l[i]}+{t2_l[i]} - {p_lnew[i]}\n')
-#     fh.close()
+# #Rename timepoints, remove no8 from acute
+# final_df = rescaled_df.copy()
+# lst = []
+# for row in range(len(final_df)):
+#     lst.append(final_df.iloc[row]['timepoint'] -1 )
+# final_df.timepoint = lst
 # =============================================================================
+
+#final_df = final_df[final_df.timepoint < 7]
+
+#plot
+#remember to switch column from fold_change to total_protein_area in the functions
+# =============================================================================
+# lineplot2(log_df)
+# plot_all(log_df)
+# clustermap(log_df)
+# final_box(log_df, 'total_area_protein')
+# box2(log_df,'Acute')
+# swarmbox(log_df)
+# 
+# =============================================================================
+
 
 # =============================================================================
 # #NORMALITY PLOTS
@@ -99,24 +81,140 @@ final_df = fold_change(rescaled_df)
 # plt.show()
 # =============================================================================
 
+
 # =============================================================================
-# #Rename timepoints, remove no8 from acute
-# final_df = rescaled_df.copy()
-# lst = []
-# for row in range(len(final_df)):
-#     lst.append(final_df.iloc[row]['timepoint'] -1 )
-# final_df.timepoint = lst
+# #Statistics kruskal mann whitney for condition comparing timepoints
+# for cond in ['Acute', 'Impaired']:
+#     
+#     fh = open(f'Kruskal_allprot_{cond}_woMC.txt', 'w')
+#     for i in rescaled_df.protein.unique():
+#         test = rescaled_df[(rescaled_df.protein == i) & (rescaled_df.condition == cond)]
+#         h, p = stats.kruskal(*[group["total_area_protein"].values for name, group in test.groupby("timepoint")])
+#         print(i,'\t',p,'\n', file = fh)
+#     fh.close()
+#     
+#     ind_l = []
+#     p_l = []
+#     t_l = [] 
+#     t2_l = []
+#     
+#     for k in rescaled_df.protein.unique():
+#         s = 1
+#         c = 2
+#         
+#         while s <= 7:
+#             if cond == 'Acute':
+#                 end = 9
+#             elif cond == 'Impaired':
+#                 end = 8
+#             for i in range(c,end):
+#                 sample1 = rescaled_df[(rescaled_df.protein == k) & (rescaled_df.condition == cond) 
+#                                       & (rescaled_df.timepoint == s)]
+#                 sample2 = rescaled_df[(rescaled_df.protein == k) & (rescaled_df.condition == cond) 
+#                                       & (rescaled_df.timepoint == i)]
+#                 u, p = stats.mannwhitneyu(sample1.total_area_protein, sample2.total_area_protein)
+#                 ind_l.append(k)
+#                 t_l.append(s)
+#                 t2_l.append(i)
+#                 p_l.append(p)
+#             
+#             c += 1
+#             s += 1
+#         
+#     reject, p_lnew, asid, abon = multitest.multipletests(p_l,alpha = 0.01, method = 'bonferroni')
+#     
+#     fh = open(f'MannwhitneyU_res_proteinpertimepoint_{cond}_woMC.txt', 'w')
+#     
+#     for i in range(len(reject)):
+#         if reject[i]:
+#             fh.write(f'{ind_l[i]}\t{t_l[i]}+{t2_l[i]} - {p_lnew[i]}\n')
+#     fh.close()
+#     
+#     with open(f'MannWhitney_{cond}_raw.txt','w') as fhraw:
+#         for i,p in enumerate(p_l):
+#             fhraw.write(f'{ind_l[i]}\t{t_l[i]}+{t2_l[i]} - {p}\n')
+# =============================================================================
+
+
+# =============================================================================
+# #Statistics kruskal wilcoxon for condition comparing timepoints
+# for cond in ['Acute', 'Impaired']:
+#     
+#     fh = open(f'Kruskal_allprot_{cond}.txt', 'w')
+#     for i in rescaled_df.protein.unique():
+#         test = rescaled_df[(rescaled_df.protein == i) & (rescaled_df.condition == cond)]
+#         h, p = stats.kruskal(*[group["total_area_protein"].values for name, group in test.groupby("timepoint")])
+#         print(i,'\t',p,'\n', file = fh)
+#     fh.close()
+#     
+#     ind_l = []
+#     p_l = []
+#     t_l = [] 
+#     t2_l = []
+#     
+#     for k in rescaled_df.protein.unique():
+#         s = 1
+#         c = 2
+#         
+#         while s <= 7:
+#             if cond == 'Acute':
+#                 end = 9
+#             elif cond == 'Impaired':
+#                 end = 8
+#             for i in range(c,end):
+#                 sample1 = rescaled_df[(rescaled_df.protein == k) & (rescaled_df.condition == cond) 
+#                                       & (rescaled_df.timepoint == s)]
+#                 sample2 = rescaled_df[(rescaled_df.protein == k) & (rescaled_df.condition == cond) 
+#                                       & (rescaled_df.timepoint == i)]
+#                 u, p = stats.wilcoxon(sample1.total_area_protein, sample2.total_area_protein)
+#                 ind_l.append(k)
+#                 t_l.append(s)
+#                 t2_l.append(i)
+#                 p_l.append(p)
+#             
+#             c += 1
+#             s += 1
+#         
+#     reject, p_lnew, asid, abon = multitest.multipletests(p_l,alpha = 0.01, method = 'bonferroni')
+#     
+#     fh = open(f'Wilcoxon_res_proteinpertimepoint_{cond}.txt', 'w')
+#     
+#     for i in range(len(reject)):
+#         if reject[i]:
+#             fh.write(f'{ind_l[i]}\t{t_l[i]}+{t2_l[i]} - {p_lnew[i]}\n')
+#     fh.close()
+#     
+#     with open(f'Wilcoxon_{cond}_raw.txt','w') as fhraw:
+#         for i,p in enumerate(p_l):
+#             fhraw.write(f'{ind_l[i]}\t{t_l[i]}+{t2_l[i]} - {p}\n')
+# =============================================================================
+
+# =============================================================================
+# protl = []
+# pl = []
 # 
-# final_df = final_df[final_df.timepoint < 7]
+# for prot in fold_df.protein.unique():
+#     dat = fold_df[fold_df.protein == prot]
+#     dat = dat[dat.condition == 'Acute']
+#     dat = dat.pivot('patient', 'timepoint', 'total_area_protein')
+#     data = []
+#     for i in dat.columns:
+#         data.append(np.array(dat[i]))
+#     d1, d2, d3, d4, d5, d6, d7, d8 = [i for i in data]
+#     res = stats.friedmanchisquare(d1, d2, d3, d4, d5, d6, d7)
+#     print(prot,res[1])
+#     protl.append(prot)
+#     pl.append(res[1])
+# 
+# reject, p_lnew, asid, abon = multitest.multipletests(pl,alpha = 0.01, method = 'bonferroni')
+# fh = open('Friedman_acute.txt','w')
+# for i,p in enumerate(protl):
+#     fh.write(p+'\t'+str(p_lnew[i])+'\n')
+# fh.close()
 # =============================================================================
 
-# =============================================================================
-# #plot
-# lineplot2(rescaled_df)
-# plot_all(rescaled_df)
-# clustermap(rescaled_df)
-# =============================================================================
-
+        
+'''Obscure'''
 # =============================================================================
 # #boxplots all
 # sns.set(context='notebook', style='whitegrid', palette = 'deep', font= 'Helvetica')
@@ -136,11 +234,6 @@ final_df = fold_change(rescaled_df)
 # sns.catplot(x = 'timepoint', y = 'fold_change', col = 'protein', kind = 'box', hue = 'condition',
 #             data = final_df, showfliers = False, col_wrap = 3, height = 3, aspect = 1)            
 # =============================================================================
-
-
-
-
-
 
 # =============================================================================
 # #RESULTS 1

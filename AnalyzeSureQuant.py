@@ -646,7 +646,7 @@ def clustermap(master_df):
         
         prot_frame = master_df[master_df.protein == proteins[i]]
         heat_frame = prot_frame.pivot('patient','timepoint', 'total_area_protein')
-        cluster_frame = heat_frame[list(heat_frame.columns)[:6]]
+        cluster_frame = heat_frame[list(heat_frame.columns)[:7]]
         #sample 325 is missing
         
         for col in cluster_frame.columns:
@@ -714,7 +714,7 @@ def lineplot2(rescaled_df):
         ax[x,y].set_title(proteins[i])
         
         if y == 0:
-            ax[x,y].set_ylabel('Rel. concentration', fontsize = 14)
+            ax[x,y].set_ylabel('Log2 rel. concentration', fontsize = 12)
         if x == 2 and y < 3:
             ax[x,y].set_xlabel('Sampling timepoint')
         
@@ -768,7 +768,7 @@ def final_box(final_df, col):
                     data = final_df[(final_df.protein == prot) & (final_df.condition == 'Impaired')], 
                     ax = ax[0], showfliers = False, whis = 1.5, color = colors[c])
         
-        ax[0].set_ylabel('Relative concentration')
+        ax[0].set_ylabel('Log2 rel. concentration')
         ax[0].set_title('Impaired', size=14)
         ymin, ymax = ax[0].get_ylim()
         ax[0].set_ylim([ymin+(ymin*0.1), ymax+(ymax*0.1)])
@@ -780,18 +780,88 @@ def final_box(final_df, col):
         ymin, ymax = ax[1].get_ylim()
         ax[1].set_ylim([ymin+(ymin*0.1), ymax+(ymax*0.1)])
         
-        ax[1].set_ylabel('Relative concentration')
+        ax[1].set_ylabel('Log2 rel. concentration')
         ax[1].set_title('Acute', size= 14)
         
         acc = titles[c].split('|')[1]
         plt.suptitle(f'{prot} - {acc}', x = 0.24, size = 15)
         #plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
         plt.tight_layout(pad = 1.5)
-        plt.subplots_adjust(top=0.92, left=0.1, right=0.95)
+        plt.subplots_adjust(top=0.92, left=0.15, right=0.95)
         plt.savefig(prot+f'_{col}box.svg', format='svg')
-        
+        plt.close()
         c += 1
+
+def box2(rescaled_df, cond):
+    sns.set(style="ticks")
+    colors = sns.color_palette('muted')
+
+    imp = rescaled_df[rescaled_df.condition == cond]
+    proteins = list(rescaled_df.protein.unique())
+    fig, ax = plt.subplots(3,3, figsize = (11,12))
+    colors = ['blue', 'orange', 'green', 'red', 'purple', 'olive', 'cyan', 'brown', 'pink']
+    ind = 0
+    for x in range(3):
+        for y in range(3):
+            data = imp[imp.protein == proteins[ind]]
+            sns.boxplot('timepoint','total_area_protein', data = data, ax = ax[x][y], color = 'tab:'+colors[ind])
+            sns.despine()
+            ax[x][y].set_title(proteins[ind])
+            ax[x][y].set_ylabel('Log2 protein area')
+            ind += 1
     
+    plt.suptitle(f'{cond} healing, all timepoints')
+    
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.92)
+    plt.savefig(f'{cond}_box_all.svg',format='svg')
+    plt.savefig(f'{cond}_box_all.png',format='png', dpi=300)
+
+def swarmbox(rescaled_df):
+    imp = rescaled_df[rescaled_df.condition == 'Acute']
+    proteins = list(rescaled_df.protein.unique())
+    fig, ax = plt.subplots(3,3, figsize = (11,12))
+    colors = ['blue', 'orange', 'green', 'red', 'purple', 'olive', 'cyan', 'brown', 'pink']
+    ind = 0
+    for x in range(3):
+        for y in range(3):
+            data = imp[imp.protein == proteins[ind]]
+            sns.boxplot('timepoint','total_area_protein', data = data, showfliers = False, ax = ax[x][y], color = colors[ind])
+            sns.swarmplot('timepoint','total_area_protein', data = data, ax = ax[x][y], color=".25")
+            sns.despine()
+            ax[x][y].set_title(proteins[ind])
+            ax[x][y].set_ylabel('Log2 protein area')
+            ind += 1
+    
+    plt.suptitle(f'Acute healing, all timepoints')
+    
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.92)
+    plt.savefig('Acute_swarmbox_all.svg',format='svg')
+    plt.savefig('Acute_swarmbox_all.png',format='png', dpi=300)
+
+
+def plot_all_2(master_df):
+    
+    proteins = list(master_df.protein.unique())
+    patients = list(master_df.patient.unique())
+    print(patients,proteins)
+    for p in range(len(patients)):
+        fig, ax = plt.subplots(3,3, figsize = (11,12))
+        ind = 0
+        for x in range(3):
+            for y in range(3):
+                data = master_df[(master_df.patient == patients[p]) & (master_df.protein == proteins[ind])]
+                ax[x][y].plot('timepoint','total_area_protein',data=data, c='b')
+                sns.despine()
+                ax[x][y].set_title(proteins[ind])
+                ind += 1
+        plt.tight_layout()
+        plt.savefig(f'{patients[p]}_fold.svg', format='svg')
+        plt.close()
+    
+
+'''Obscure'''    
 #run things under here
   
 # =============================================================================
