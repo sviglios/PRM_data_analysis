@@ -30,10 +30,8 @@ rescaled_df = rescale(protein_df)
 fold_df = fold_change(rescaled_df)
 
 #log transformation
-# =============================================================================
-# log_df = fold_df.copy()
-# log_df['total_area_protein'] = np.log2(log_df['total_area_protein'])
-# =============================================================================
+log_df = fold_df.copy()
+log_df['total_area_protein'] = np.log2(log_df['total_area_protein'])
 
 # =============================================================================
 # #Rename timepoints, remove no8 from acute
@@ -46,17 +44,17 @@ fold_df = fold_change(rescaled_df)
 
 #final_df = final_df[final_df.timepoint < 7]
 
-#plot
-#remember to switch column from fold_change to total_protein_area in the functions
 # =============================================================================
+# #plot
+# #remember to switch column from fold_change to total_protein_area in the functions
 # lineplot2(log_df)
 # plot_all(log_df)
 # clustermap(log_df)
 # final_box(log_df, 'total_area_protein')
 # box2(log_df,'Acute')
 # swarmbox(log_df)
-# 
 # =============================================================================
+
 
 
 # =============================================================================
